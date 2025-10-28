@@ -1,0 +1,24 @@
+# Example configuration for Cloud Backbone
+
+health_monitoring:
+  enabled: true
+  check_interval: 60  # seconds
+  cpu_threshold: 80
+  memory_threshold: 85
+  disk_threshold: 90
+
+self_healing:
+  enabled: true
+  cooldown: 300  # seconds between healing attempts
+  max_healing_attempts: 3
+
+cost_optimization:
+  enabled: true
+  check_interval: 3600  # seconds
+  underutilization_threshold: 0.2  # 20%
+  auto_optimize: false  # Set to true to automatically apply optimizations
+
+logging:
+  level: INFO
+  file: cloud_backbone.log
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
