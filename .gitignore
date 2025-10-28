@@ -1,0 +1,44 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+
+# virtual environments
+venv/
+venv.bak/
+.venv/
+/.venv
+env/
+ENV/
+
+# pipenv
+Pipfile.lock
+
+# pytest
+.pytest_cache/
+
+# mypy
+.mypy_cache/
+
+# Editor configs
+.vscode/
+.idea/
+*.swp
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Build / dist
+/dist/
+/build/
+/eggs/
+*.egg-info/
+*.egg
+
+# logs
+*.log
+
+# Sensitive
+.env
