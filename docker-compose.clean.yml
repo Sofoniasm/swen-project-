@@ -1,0 +1,31 @@
+version: '3.8'
+
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    environment:
+      - PORT=8000
+      - PYTHONUNBUFFERED=1
+    ports:
+      - "8001:8000"
+    volumes:
+      - ./api:/app/api:ro
+
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+    ports:
+      - "8000:80"
+    depends_on:
+      - backend
+
+  simulator:
+    image: python:3.11-slim
+    command: ["/bin/sh","-c","python -m pip install -r api/requirements.txt -q || true; python -m ai_engine.simulator --mode http --interval 5 --backend http://backend:8000"]
+    depends_on:
+      - backend
+    environment:
+      - PYTHONUNBUFFERED=1

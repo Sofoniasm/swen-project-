@@ -1,0 +1,8 @@
+FROM nginx:stable-alpine
+# Expect a pre-built `frontend/dist` directory. This Dockerfile will copy
+# the static build artifacts into the nginx document root. If you don't have
+# a Node build step in this repo, build the frontend locally (npm run build)
+# so that `frontend/dist` exists before running `docker build`.
+COPY frontend/dist /usr/share/nginx/html
+EXPOSE 80
+CMD ["nginx", "-g", "daemon off;"]
