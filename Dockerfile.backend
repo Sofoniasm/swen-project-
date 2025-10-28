@@ -1,0 +1,40 @@
+# Backend Dockerfile (simple)
+FROM python:3.11-slim
+
+WORKDIR /app
+
+# Optionally install build tools if you need to compile native extensions.
+# Set --build-arg INSTALL_BUILD_TOOLS=true when building if required.
+ARG INSTALL_BUILD_TOOLS=false
+
+# Install minimal system deps (git/curl) only -- avoid installing build
+# toolchains by default because they significantly slow the image build,
+# especially on WSL2 / Windows hosts. If native builds are required, set
+# INSTALL_BUILD_TOOLS=true at build time to include build-essential/gcc.
+RUN apt-get update \
+        && apt-get install -y --no-install-recommends git curl \
+        && if [ "$INSTALL_BUILD_TOOLS" = "true" ]; then \
+                 apt-get install -y --no-install-recommends build-essential gcc; \
+             fi \
+        && rm -rf /var/lib/apt/lists/*
+
+# Upgrade pip
+RUN python -m pip install --upgrade pip
+
+# Copy only requirements first to leverage Docker layer cache for pip installs.
+# This makes iterative builds much faster when application code changes but
+# dependencies do not.
+COPY api/requirements.txt ./api/requirements.txt
+RUN if [ -f ./api/requirements.txt ]; then \
+            pip install --no-cache-dir -r ./api/requirements.txt; \
+        else \
+            pip install --no-cache-dir fastapi uvicorn requests websocket-client; \
+        fi
+
+ENV PYTHONPATH=/app
+
+EXPOSE 8000
+
+# Rely on docker-compose to mount the local `api/` code into /app/api when
+# running in development; the CMD will start the application server.
+CMD ["uvicorn", "api.main:app", "--host", "0.0.0.0", "--port", "8000"]

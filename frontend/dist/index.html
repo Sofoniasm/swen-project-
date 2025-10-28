@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>SWEN Cloud Intelligence Console</title>
+  <link rel="stylesheet" href="/styles.css" />
+  <meta name="theme-color" content="#071b2f" />
+  <style>html,body{height:100%}</style>
+</head>
+<body>
+  <div id="app">
+    <nav class="topbar">
+      <div class="brand">
+        <div class="logo">SWEN</div>
+        <div class="title">Cloud Intelligence Console</div>
+      </div>
+      <div class="right">Live · <span id="status">connecting...</span></div>
+    </nav>
+
+    <header class="hero">
+      <h1>Self‑Healing • Cost‑Optimizing • Observability</h1>
+      <p class="lead">Live telemetry, AI routing decisions, and a clear economics view — demo mode.</p>
+    </header>
+
+    <section class="metrics" aria-label="platform metrics">
+      <div class="card metric">
+        <div class="label">Total Spend (min)</div>
+        <div id="metric-spend" class="value">$0.000</div>
+      </div>
+      <div class="card metric">
+        <div class="label">Avg Latency (ms)</div>
+        <div id="metric-latency" class="value">0</div>
+      </div>
+      <div class="card metric">
+        <div class="label">Active Services</div>
+        <div id="metric-services" class="value">0</div>
+      </div>
+      <div class="card metric">
+        <div class="label">AI Confidence</div>
+        <div id="metric-confidence" class="value">—</div>
+      </div>
+    </section>
+
+    <main class="grid">
+      <section class="panel" id="telemetry-panel">
+        <h2>Recent Telemetry</h2>
+        <div class="table-wrap">
+          <table id="telemetry-table" class="telemetry-table" aria-live="polite">
+            <thead>
+              <tr><th>Time</th><th>Service</th><th>Provider</th><th>Region</th><th>CPU</th><th>Mem</th><th>Latency</th><th>$/min</th></tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </section>
+
+      <aside class="panel" id="decisions-panel">
+        <h2>Decisions & Economics</h2>
+        <div id="decisions-list" class="decisions-list"></div>
+          <form id="deploy-form" class="deploy-form" style="margin-top:12px">
+            <h3 style="margin:0 0 8px 0">Request Deployment</h3>
+            <div style="display:flex;gap:8px;flex-wrap:wrap">
+              <select id="df-service" required>
+                <option value="">Select service</option>
+                <option value="fetcher">fetcher</option>
+                <option value="indexer">indexer</option>
+                <option value="ranker">ranker</option>
+              </select>
+              <select id="df-region">
+                <option value="">Any region</option>
+                <option value="us-east-1">us-east-1</option>
+                <option value="eu-west-1">eu-west-1</option>
+                <option value="cn-hangzhou">cn-hangzhou</option>
+              </select>
+              <select id="df-size">
+                <option value="">Standard size</option>
+                <option value="small">small — 0.5 CPU / 128 MB</option>
+                <option value="medium">medium — 1 CPU / 256 MB</option>
+                <option value="large">large — 2 CPU / 512 MB</option>
+              </select>
+              <button id="df-price" type="button">Get Price</button>
+              <button id="df-submit" type="submit">Recommend</button>
+            </div>
+            <div id="df-result" style="margin-top:8px;font-size:13px;color:var(--muted)"></div>
+            <div id="df-prices" style="margin-top:8px;font-size:13px;color:var(--muted)"></div>
+          </form>
+        <div class="economics card">
+          <h3>Economics</h3>
+          <div class="econ-row"><span>Estimated spend (1h):</span><strong id="econ-1h">$0.00</strong></div>
+          <div class="econ-row"><span>Predicted savings:</span><strong id="econ-save">—</strong></div>
+        </div>
+      </aside>
+    </main>
+
+    <footer class="footer">Prototype · Simulation mode · Local demo</footer>
+  </div>
+
+  <script src="/app.js"></script>
+</body>
+</html>
