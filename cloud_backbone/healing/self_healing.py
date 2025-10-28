@@ -40,7 +40,8 @@ class HealingRule:
         """Check if healing condition is met"""
         try:
             return self.condition(health_data)
-        except Exception:
+        except Exception as e:
+            logging.error(f"Error evaluating healing condition for {self.name}: {e}")
             return False
             
     def execute(self, health_data: Dict) -> Dict:

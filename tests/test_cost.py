@@ -21,7 +21,8 @@ class TestResource(unittest.TestCase):
         resource = Resource("test-1", ResourceType.COMPUTE, 1.0, 0.5)
         
         self.assertEqual(resource.get_daily_cost(), 24.0)
-        self.assertEqual(resource.get_monthly_cost(), 720.0)
+        # Using 30.44 average days per month (more accurate)
+        self.assertAlmostEqual(resource.get_monthly_cost(), 730.56, places=2)
     
     def test_is_underutilized(self):
         """Test underutilization detection"""
@@ -55,7 +56,8 @@ class TestCostOptimizer(unittest.TestCase):
         costs = self.optimizer.get_total_cost()
         self.assertEqual(costs['hourly'], 1.5)
         self.assertEqual(costs['daily'], 36.0)
-        self.assertEqual(costs['monthly'], 1080.0)
+        # Using 30.44 average days per month
+        self.assertAlmostEqual(costs['monthly'], 1095.84, places=2)
         self.assertEqual(costs['resources_count'], 2)
     
     def test_find_underutilized_resources(self):

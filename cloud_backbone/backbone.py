@@ -39,10 +39,12 @@ class CloudBackbone:
         log_level = self.config.get('logging.level', 'INFO')
         log_format = self.config.get('logging.format')
         
-        logging.basicConfig(
-            level=getattr(logging, log_level),
-            format=log_format
-        )
+        # Only configure if not already configured
+        if not logging.getLogger().hasHandlers():
+            logging.basicConfig(
+                level=getattr(logging, log_level),
+                format=log_format
+            )
         
     def _setup_default_health_checks(self):
         """Setup default health checks"""

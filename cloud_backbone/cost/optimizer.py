@@ -8,6 +8,11 @@ from typing import Dict, List, Optional
 from enum import Enum
 
 
+# Constants
+HOURS_PER_DAY = 24
+DAYS_PER_MONTH = 30.44  # Average days per month
+
+
 class ResourceType(Enum):
     """Types of cloud resources"""
     COMPUTE = "compute"
@@ -34,11 +39,11 @@ class Resource:
         
     def get_daily_cost(self) -> float:
         """Calculate daily cost"""
-        return self.cost_per_hour * 24
+        return self.cost_per_hour * HOURS_PER_DAY
     
     def get_monthly_cost(self) -> float:
         """Calculate monthly cost"""
-        return self.cost_per_hour * 24 * 30
+        return self.cost_per_hour * HOURS_PER_DAY * DAYS_PER_MONTH
     
     def is_underutilized(self, threshold: float = 0.2) -> bool:
         """Check if resource is underutilized"""
