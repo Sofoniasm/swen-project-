@@ -7,7 +7,9 @@ variable "aws_region" {
 variable "cluster_version" {
   description = "Kubernetes version for the EKS cluster (must be supported in the target region)"
   type        = string
-  default     = "1.25"
+  # Set to the latest supported EKS version observed in your account/region.
+  # Updated to 1.34 (latest available per account query).
+  default     = "1.34"
 }
 
 variable "cluster_name" {
