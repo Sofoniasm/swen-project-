@@ -12,19 +12,8 @@ provider "aws" {
   region = var.aws_region
 }
 
-module "eks" {
-  source          = "terraform-aws-modules/eks/aws"
-  # Pin to v18.x which accepts the legacy inputs used below (create_vpc, node_groups).
-  # v19 introduced input changes; pinning keeps the existing config working.
-  version         = "~> 18.0"
+data "aws_availability_zones" "available" {}
 
-  cluster_name    = var.cluster_name
-  cluster_version = "1.27"
-
-# Create a small VPC for the cluster using the community VPC module and pass its
-# outputs into the EKS module. The upstream EKS module expects `vpc_id` and
-# `subnet_ids` (v18.x uses `eks_managed_node_groups` naming for managed groups),
-# so we create the VPC here instead of relying on a removed `create_vpc` flag.
 module "vpc" {
   source  = "terraform-aws-modules/vpc/aws"
   version = "~> 3.0"
@@ -42,7 +31,16 @@ module "vpc" {
   tags = var.tags
 }
 
-# Provide the created VPC/subnets to the EKS module
+module "eks" {
+  source          = "terraform-aws-modules/eks/aws"
+  # Pin to v18.x which accepts the legacy inputs used below (create_vpc, node_groups).
+  # v19 introduced input changes; pinning keeps the existing config working.
+  version         = "~> 18.0"
+
+  cluster_name    = var.cluster_name
+  cluster_version = "1.27"
+
+  # Provide the created VPC/subnets to the EKS module
   vpc_id     = module.vpc.vpc_id
   subnet_ids = module.vpc.private_subnets
 
