@@ -20,12 +20,16 @@ jobs:
         with:
           terraform_version: '1.5.7'
 
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v2
-        with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ secrets.AWS_REGION }}
+      - name: Export AWS credentials to environment (temporary workaround)
+        # NOTE: Temporary workaround to avoid sts endpoint/network issues observed with
+        # aws-actions/configure-aws-credentials on hosted runners. This step exports
+        # the static secrets into the job environment so Terraform and aws CLI can use
+        # them directly. After provisioning completes, remove static secrets and
+        # restore the `aws-actions/configure-aws-credentials` step or OIDC flow.
+        run: |
+          echo "AWS_ACCESS_KEY_ID=${{ secrets.AWS_ACCESS_KEY_ID }}" >> $GITHUB_ENV
+          echo "AWS_SECRET_ACCESS_KEY=${{ secrets.AWS_SECRET_ACCESS_KEY }}" >> $GITHUB_ENV
+          echo "AWS_REGION=${{ secrets.AWS_REGION }}" >> $GITHUB_ENV
 
       - name: Terraform init
         working-directory: infra/terraform
@@ -57,6 +61,37 @@ jobs:
           helm repo add jetstack https://charts.jetstack.io
           helm repo update
           helm upgrade --install cert-manager jetstack/cert-manager --namespace cert-manager --create-namespace --version v1.11.0 --set installCRDs=true
+
+      - name: Install ingress-nginx (Helm)
+        run: |
+          helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx
+          helm repo update
+          helm upgrade --install ingress-nginx ingress-nginx/ingress-nginx --namespace ingress-nginx --create-namespace --set controller.replicaCount=1 --set controller.service.type=LoadBalancer
+
+      - name: Wait for ingress LoadBalancer IP
+        run: |
+          echo "Waiting up to 5 minutes for ingress-nginx LoadBalancer external IP/hostname..."
+          for i in {1..30}; do
+            LB_IP=$(kubectl -n ingress-nginx get svc -l app.kubernetes.io/component=controller -o jsonpath='{.items[0].status.loadBalancer.ingress[0].ip}' 2>/dev/null || true)
+            LB_HOST=$(kubectl -n ingress-nginx get svc -l app.kubernetes.io/component=controller -o jsonpath='{.items[0].status.loadBalancer.ingress[0].hostname}' 2>/dev/null || true)
+            if [ -n "$LB_IP" ] || [ -n "$LB_HOST" ]; then
+              echo "Found LoadBalancer: $LB_IP $LB_HOST"
+              echo "external_ip_or_hostname=$LB_IP$LB_HOST" >> $GITHUB_OUTPUT
+              break
+            fi
+            sleep 10
+          done
+          if [ -z "$LB_IP" ] && [ -z "$LB_HOST" ]; then
+            echo "WARNING: LoadBalancer external IP/hostname not found after waiting. You will need to check the service manually: kubectl -n ingress-nginx get svc"
+          fi
+
+      - name: Apply cert-manager ClusterIssuer (HTTP-01)
+        run: |
+          kubectl apply -f infra/cert-manager/cluster-issuer-http01.yaml || true
+
+      - name: Apply ArgoCD Ingress
+        run: |
+          kubectl apply -f infra/k8s/argocd-ingress.yaml || true
 
       - name: Install ArgoCD (Helm, minimal)
         run: |
