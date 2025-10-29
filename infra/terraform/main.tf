@@ -14,21 +14,45 @@ provider "aws" {
 
 module "eks" {
   source          = "terraform-aws-modules/eks/aws"
-  version         = "~> 19.0"
+  # Pin to v18.x which accepts the legacy inputs used below (create_vpc, node_groups).
+  # v19 introduced input changes; pinning keeps the existing config working.
+  version         = "~> 18.0"
 
   cluster_name    = var.cluster_name
   cluster_version = "1.27"
 
-  # Create a minimal VPC for the cluster (default settings).
-  create_vpc = true
+# Create a small VPC for the cluster using the community VPC module and pass its
+# outputs into the EKS module. The upstream EKS module expects `vpc_id` and
+# `subnet_ids` (v18.x uses `eks_managed_node_groups` naming for managed groups),
+# so we create the VPC here instead of relying on a removed `create_vpc` flag.
+module "vpc" {
+  source  = "terraform-aws-modules/vpc/aws"
+  version = "~> 3.0"
+
+  name = "${var.cluster_name}-vpc"
+  cidr = "10.0.0.0/16"
+
+  azs             = slice(data.aws_availability_zones.available.names, 0, 2)
+  private_subnets = ["10.0.1.0/24", "10.0.2.0/24"]
+  public_subnets  = ["10.0.101.0/24", "10.0.102.0/24"]
+
+  enable_nat_gateway = false
+  single_nat_gateway = false
+
+  tags = var.tags
+}
+
+# Provide the created VPC/subnets to the EKS module
+  vpc_id     = module.vpc.vpc_id
+  subnet_ids = module.vpc.private_subnets
 
   # Minimal managed node group (single small instance to reduce cost)
-  node_groups = {
+  eks_managed_node_groups = {
     minimal = {
-      desired_capacity = var.node_count
-      min_capacity     = 1
-      max_capacity     = 1
-      instance_types   = [var.instance_type]
+      desired_size   = var.node_count
+      min_size       = 1
+      max_size       = 1
+      instance_types = [var.instance_type]
     }
   }
 
