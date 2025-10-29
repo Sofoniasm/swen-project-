@@ -75,3 +75,10 @@ Next steps (recommended)
 ------------------------
 - Run `python scripts/dev.py --install-dev` to install dev tools and then `python scripts/dev.py --run-tests` and `python scripts/dev.py --lint` to validate quality.
 - Implement `RUNBOOK.md` additions for any infra or provider accounts when you decide to enable real cloud applies.
+
+Automated trigger note
+----------------------
+
+This file was touched automatically to trigger CI (workflow `terraform-apply.yml`) as part of the automation flow.
+
+Last automated trigger: 2025-10-29T15:45:00Z

@@ -1,6 +1,9 @@
 name: 'Infra — Terraform apply & bootstrap'
 
 on:
+  push:
+    branches:
+      - main
   workflow_dispatch:
 
 permissions:
@@ -34,6 +37,42 @@ jobs:
       - name: Terraform init
         working-directory: infra/terraform
         run: terraform init -input=false
+
+      - name: AWS pre-check: caller identity and supported EKS versions
+        working-directory: infra/terraform
+        # Fail early with clear diagnostics if the runner is using the wrong AWS credentials
+        # or the requested cluster_version is not supported in the runner account/region.
+        run: |
+          echo "=== AWS caller identity ==="
+          aws sts get-caller-identity --output json || { echo "ERROR: aws sts get-caller-identity failed — check AWS credentials/region in repo secrets."; exit 2; }
+
+          echo "\n=== Determine requested cluster_version from Terraform variables.tf ==="
+          if [ -f variables.tf ]; then
+            CLUSTER_VERSION=$(grep -A2 'variable "cluster_version"' variables.tf | grep default | sed 's/.*=\s*//; s/\"//g; s/ //g' || true)
+          else
+            CLUSTER_VERSION=""
+          fi
+          echo "Requested cluster_version: ${CLUSTER_VERSION:-(not found in infra/terraform/variables.tf)}"
+
+          echo "\n=== Querying supported EKS cluster versions in this account/region ==="
+          SUPPORTED=$(aws eks describe-addon-versions --query 'addons[].addonVersions[].compatibilities[].clusterVersion' --output text | tr '\t' '\n' | sort -u | uniq || true)
+          if [ -z "$SUPPORTED" ]; then
+            echo "WARNING: Could not determine supported EKS cluster versions (empty result). This may indicate a permissions or network issue.";
+          else
+            echo "Supported EKS cluster versions (sample):"
+            echo "$SUPPORTED" | sed -n '1,20p'
+          fi
+
+          if [ -n "$CLUSTER_VERSION" ]; then
+            echo "$SUPPORTED" | grep -x "$CLUSTER_VERSION" >/dev/null 2>&1 || {
+              echo "ERROR: requested cluster_version '$CLUSTER_VERSION' is not present in the supported versions list for this account/region.";
+              echo "If you expect a different AWS account/region, update the repo secrets (AWS_ACCESS_KEY_ID/AWS_SECRET_ACCESS_KEY/AWS_REGION) to the keys you verified locally or fix OIDC configuration.";
+              exit 3;
+            }
+            echo "Requested cluster_version $CLUSTER_VERSION is supported — continuing."
+          else
+            echo "No cluster_version found in infra/terraform/variables.tf; continuing without version check.";
+          fi
 
       - name: Import existing CloudWatch log group into Terraform state (if present)
         working-directory: infra/terraform
