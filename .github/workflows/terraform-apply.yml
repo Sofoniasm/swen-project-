@@ -1,0 +1,81 @@
+name: 'Infra — Terraform apply & bootstrap'
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  terraform-apply:
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v2
+        with:
+          terraform_version: '1.5.7'
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: Terraform init
+        working-directory: infra/terraform
+        run: terraform init -input=false
+
+      - name: Terraform apply (create EKS)
+        working-directory: infra/terraform
+        run: terraform apply -auto-approve
+
+      - name: Terraform outputs
+        id: tfoutputs
+        working-directory: infra/terraform
+        run: |
+          terraform output -raw cluster_name > cluster_name.txt || true
+          terraform output -raw cluster_endpoint > cluster_endpoint.txt || true
+          echo "cluster_name=$(cat cluster_name.txt)" >> $GITHUB_OUTPUT
+
+      - name: Install kubectl and helm
+        run: |
+          curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl" && chmod +x kubectl && sudo mv kubectl /usr/local/bin/
+          curl -fsSL https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+
+      - name: Update kubeconfig
+        run: |
+          aws eks update-kubeconfig --name ${{ steps.tfoutputs.outputs.cluster_name }} --region ${{ secrets.AWS_REGION }}
+
+      - name: Install cert-manager (Helm)
+        run: |
+          helm repo add jetstack https://charts.jetstack.io
+          helm repo update
+          helm upgrade --install cert-manager jetstack/cert-manager --namespace cert-manager --create-namespace --version v1.11.0 --set installCRDs=true
+
+      - name: Install ArgoCD (Helm, minimal)
+        run: |
+          helm repo add argo https://argoproj.github.io/argo-helm
+          helm repo update
+          # Install ArgoCD with a ClusterIP service (no LB) to minimize cloud resources.
+          helm upgrade --install argocd argo/argo-cd --namespace argocd --create-namespace \
+            --set server.service.type=ClusterIP \
+            --set controller.replicas=1
+
+      - name: Wait for ArgoCD server
+        run: |
+          kubectl -n argocd rollout status deployment argocd-server --timeout=3m || true
+
+      - name: Apply ArgoCD Application (register repo)
+        run: |
+          kubectl apply -f infra/argocd/argocd-application.yaml || true
+
+      - name: Output summary
+        run: |
+          echo "EKS cluster created: ${{ steps.tfoutputs.outputs.cluster_name }}"
+          echo "ArgoCD installed in namespace: argocd"

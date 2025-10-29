@@ -40,6 +40,31 @@ Next steps I can do for you:
 - Finalize CI to push to another registry (ECR/Docker Hub) if you prefer.
 - Prepare Terraform modules to provision EKS + ArgoCD + cert-manager (requires AWS credentials and domain access).
 - Automatically update k8s image tags from CI and create an ArgoCD Application manifest.
+
+AWS / EKS provisioning (what I added)
+- `infra/terraform/` — Terraform skeleton that provisions a minimal EKS cluster using the `terraform-aws-modules/eks/aws` module. It's configured for a single small node (default `t3.small`, `node_count=1`) to keep AWS costs low. You must supply AWS credentials and region as GitHub secrets to run the automation.
+- `.github/workflows/terraform-apply.yml` — GitHub Actions workflow that runs the Terraform apply and then bootstraps `cert-manager` and `ArgoCD` into the new cluster via Helm. The workflow is triggered manually (workflow_dispatch).
+- `infra/argocd/argocd-application.yaml` — an ArgoCD Application manifest that points ArgoCD at `infra/k8s` in this repository so your infra manifests are managed by ArgoCD.
+
+Required GitHub secrets for automation (add these to the repository Settings → Secrets):
+- `AWS_ACCESS_KEY_ID` (IAM credentials with permissions to create EKS, VPC, EC2)
+- `AWS_SECRET_ACCESS_KEY`
+- `AWS_REGION` (e.g., `us-east-1`)
+
+Optional (for Cert-manager DNS01 with Route53):
+- `ROUTE53_ZONE_ID` (if you want to enable DNS-01 challenges automatically — not wired into the workflow by default)
+
+How to provision (safe flow):
+1. Add the required GitHub secrets above.
+2. From the Actions tab, run the `Infra — Terraform apply & bootstrap` workflow (manual dispatch). It will:
+  - Terraform apply the minimal EKS cluster
+  - Install `cert-manager` and `ArgoCD` into the cluster (Helm)
+  - Apply an ArgoCD Application manifest which will cause ArgoCD to sync k8s manifests from `infra/k8s`
+
+Important notes about costs and access:
+- EKS control plane is a managed AWS service and has its own cost. The Terraform config provisions a single small worker node to keep the hourly cost minimal. Review AWS pricing before applying.
+- The workflow will need AWS credentials with sufficient IAM permissions. If you prefer to run Terraform locally, you can run the Terraform in `infra/terraform` yourself and then run the Helm install steps locally.
+
 # SWEN GitOps + AIOps Prototype
 
 This repository contains a simulation-first GitOps + AIOps prototype for SWEN.

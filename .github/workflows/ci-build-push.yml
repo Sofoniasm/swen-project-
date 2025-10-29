@@ -65,3 +65,31 @@ jobs:
           name: images
           path: |
             .
+
+      - name: Create image update branch and PR
+        if: always()
+        env:
+          IMAGE_BACKEND: ghcr.io/${{ github.repository_owner }}/swen-project-backend:${{ github.sha }}
+          IMAGE_FRONTEND: ghcr.io/${{ github.repository_owner }}/swen-project-frontend:${{ github.sha }}
+        run: |
+          git config user.name "github-actions"
+          git config user.email "actions@github.com"
+          git checkout -b image-updates/${{ github.sha }}
+          # Update backend image in infra manifests
+          sed -i "s|ghcr.io/REPLACE_OWNER/swen-project-backend:main|${IMAGE_BACKEND}|g" infra/k8s/* || true
+          sed -i "s|ghcr.io/REPLACE_OWNER/swen-project-frontend:main|${IMAGE_FRONTEND}|g" infra/k8s/* || true
+          git add infra/k8s || true
+          git commit -m "chore: update k8s images to ${{ github.sha }}" || echo "no changes"
+          git push --set-upstream origin image-updates/${{ github.sha }} || true
+
+      - name: Create Pull Request for image updates
+        if: always()
+        uses: peter-evans/create-pull-request@v5
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          commit-message: "chore: update k8s images to ${{ github.sha }}"
+          branch: image-updates/${{ github.sha }}
+          title: "ci: update images to ${{ github.sha }}"
+          body: |
+            This PR updates the Kubernetes manifests in `infra/k8s` to use images built by CI (tagged with the commit SHA). The ArgoCD application will pick these up and deploy them to the cluster once ArgoCD is installed and syncing.
+          base: main
