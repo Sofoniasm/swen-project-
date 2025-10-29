@@ -99,7 +99,7 @@
         region: dfRegion.value || undefined
       };
       try{
-        const resp = await fetch('/deploy_request', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(payload) });
+  const resp = await fetch((API_BASE || '') + '/deploy_request', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(payload) });
         if(!resp.ok) throw new Error('request failed');
         const j = await resp.json();
         // show result summary
@@ -124,7 +124,7 @@
       else if(size === 'large'){ cpu = 2; memory = 512; }
       if(!cpu){ dfPrices.textContent = 'Please select a size.'; return; }
       try{
-        const resp = await fetch('/price', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({cpu: cpu, memory: memory, region: dfRegion.value||undefined}) });
+  const resp = await fetch((API_BASE || '') + '/price', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({cpu: cpu, memory: memory, region: dfRegion.value||undefined}) });
         if(!resp.ok) throw new Error('price request failed');
         const j = await resp.json();
         // j is an object keyed by provider
@@ -134,9 +134,14 @@
     });
   }
 
-  // WebSocket connection
+  // Decide API base: when frontend is served on port 8000 (docker compose), the backend is on 8001.
+  // When backend serves the frontend directly (same origin) API_BASE should be empty (relative).
+  const API_BASE = (location.port === '8000') ? (location.protocol + '//' + location.hostname + ':8001') : '';
+
+  // WebSocket connection (use backend host when frontend is served separately)
   try{
-    const ws = new WebSocket((location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/ws');
+    const wsUrl = (location.protocol === 'https:' ? 'wss://' : 'ws://') + location.hostname + (API_BASE ? ':8001' : '') + '/ws';
+    const ws = new WebSocket(wsUrl);
     ws.addEventListener('open', ()=> setStatus('connected (ws)'));
     ws.addEventListener('close', ()=> setStatus('disconnected'));
     ws.addEventListener('message', (ev)=>{
@@ -148,10 +153,11 @@
     });
   }catch(e){ console.warn('ws failed', e); setStatus('ws failed'); }
 
-  // polling fallback
+  // polling fallback (use API_BASE if set)
   async function poll(){
     try{
-      const [rt, rd] = await Promise.all([fetch('/telemetry'), fetch('/decisions')]);
+      const base = API_BASE || '';
+      const [rt, rd] = await Promise.all([fetch(base + '/telemetry'), fetch(base + '/decisions')]);
       if(rt.ok){ const t = await rt.json(); applyTelemetryUpdate(t); }
       if(rd.ok){ const d = await rd.json(); applyDecisionUpdate(d); }
       setStatus('connected (poll)');

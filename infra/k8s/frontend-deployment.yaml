@@ -1,0 +1,59 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: aiops-frontend
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: aiops-frontend
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: aiops-frontend
+  template:
+    metadata:
+      labels:
+        app: aiops-frontend
+    spec:
+      containers:
+        - name: frontend
+          image: ghcr.io/REPLACE_OWNER/swen-project-frontend:main
+          ports:
+            - containerPort: 80
+          resources:
+            requests:
+              cpu: "50m"
+              apiVersion: apps/v1
+              kind: Deployment
+              metadata:
+                name: aiops-frontend
+              spec:
+                replicas: 1
+                selector:
+                  matchLabels:
+                    app: aiops-frontend
+                template:
+                  metadata:
+                    labels:
+                      app: aiops-frontend
+                  spec:
+                    containers:
+                      - name: frontend
+                        image: ghcr.io/REPLACE_OWNER/swen-project-frontend:main
+                        ports:
+                          - containerPort: 80
+                        resources:
+                          requests:
+                            cpu: "50m"
+                            memory: "64Mi"
+                          limits:
+                            cpu: "250m"
+                            memory: "256Mi"
+                        readinessProbe:
+                          httpGet:
+                            path: /
+                            port: 80
+                          initialDelaySeconds: 5
+                          periodSeconds: 10

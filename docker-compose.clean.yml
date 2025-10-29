@@ -1,5 +1,7 @@
 version: '3.8'
 
+version: '3.8'
+
 services:
   backend:
     build:
@@ -24,8 +26,14 @@ services:
 
   simulator:
     image: python:3.11-slim
-    command: ["/bin/sh","-c","python -m pip install -r api/requirements.txt -q || true; python -m ai_engine.simulator --mode http --interval 5 --backend http://backend:8000"]
     depends_on:
       - backend
     environment:
       - PYTHONUNBUFFERED=1
+    volumes:
+      - ./:/app:ro
+    working_dir: /app
+    # Mount the repository into the simulator container so the `ai_engine` package
+    # and `api/requirements.txt` are available. This avoids needing a separate
+    # simulator Dockerfile and keeps iteration fast for local development.
+    command: ["/bin/sh","-c","python -m pip install -r /app/api/requirements.txt -q || true; python -m ai_engine.simulator --mode http --interval 5 --backend http://backend:8000"]

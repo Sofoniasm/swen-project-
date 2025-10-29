@@ -92,25 +92,66 @@ async def healthz():
 
 @app.get("/telemetry")
 async def get_telemetry():
-    return telemetry_store
+    # return a flattened list of telemetry dicts to guard against historic nested lists
+        # Return a flattened list of telemetry dicts so clients always receive an array of objects
+        out = []
+        for t in telemetry_store:
+            if isinstance(t, dict):
+                out.append(t)
+            elif isinstance(t, list):
+                for item in t:
+                    if isinstance(item, dict):
+                        out.append(item)
+        return out
 
 @app.post("/telemetry")
 async def post_telemetry(req: Request):
     payload = await req.json()
-    telemetry_store.append(payload)
-    # broadcast latest telemetry to ws clients
-    await manager.broadcast({"telemetry_tail": telemetry_store[-10:]})
+    # Accept either a single telemetry dict or a list of telemetry dicts
+    if isinstance(payload, list):
+        for item in payload:
+            if isinstance(item, dict):
+                telemetry_store.append(item)
+    elif isinstance(payload, dict):
+        telemetry_store.append(payload)
+    else:
+        # ignore other payload shapes
+        pass
+
+    # broadcast latest telemetry to ws clients (ensure list of dicts)
+    tail = [t for t in telemetry_store if isinstance(t, dict)]
+    await manager.broadcast({"telemetry_tail": tail[-10:]})
     return JSONResponse({"status": "ok"})
 
 @app.get("/decisions")
 async def get_decisions():
-    return decision_store
+    # flatten any nested lists for robustness
+        # Return a flattened list of decisions (filter out malformed entries)
+        out = []
+        for d in decision_store:
+            if isinstance(d, dict):
+                out.append(d)
+            elif isinstance(d, list):
+                for item in d:
+                    if isinstance(item, dict):
+                        out.append(item)
+        return out
 
 @app.post("/decisions")
 async def post_decision(req: Request):
     payload = await req.json()
-    decision_store.append(payload)
-    await manager.broadcast({"decisions_tail": decision_store[-10:]})
+    # Accept list or single decision
+    if isinstance(payload, list):
+        for item in payload:
+            if isinstance(item, dict):
+                decision_store.append(item)
+    elif isinstance(payload, dict):
+        decision_store.append(payload)
+    else:
+        pass
+
+    tail = [d for d in decision_store if isinstance(d, dict)]
+    await manager.broadcast({"decisions_tail": tail[-10:]})
     return JSONResponse({"status": "ok"})
 
 
@@ -134,6 +175,9 @@ async def handle_deploy_request(req: Request):
     provider_costs = {}
     counts = {}
     for t in telemetry_store:
+        # skip malformed entries (e.g., lists accidentally stored)
+        if not isinstance(t, dict):
+            continue
         if t.get('service') != dr.service:
             continue
         if dr.region and t.get('region') != dr.region:
