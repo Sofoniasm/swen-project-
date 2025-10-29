@@ -1,0 +1,22 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": [
+        "eks:*",
+        "ec2:*",
+        "autoscaling:*",
+        "iam:PassRole",
+        "iam:GetRole",
+        "iam:CreateServiceLinkedRole",
+        "elasticloadbalancing:*",
+        "route53:ChangeResourceRecordSets",
+        "route53:ListHostedZonesByName",
+        "s3:*",
+        "sts:AssumeRole"
+      ],
+      "Resource": "*"
+    }
+  ]
+}

@@ -1,0 +1,27 @@
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: letsencrypt-prod-http01
+  namespace: cert-manager
+spec:
+  acme:
+    # Use Let's Encrypt production endpoint
+    server: https://acme-v02.api.letsencrypt.org/directory
+    email: admin@fidevops.xyz
+    privateKeySecretRef:
+      name: letsencrypt-prod-http01
+    solvers:
+      - http01:
+          ingress:
+            class: nginx
+
+---
+# Notes:
+# - This ClusterIssuer uses HTTP-01 challenges. The Ingress for ArgoCD must be reachable publicly
+#   and the DNS A (or CNAME) record for the host must point to the ingress controller LoadBalancer.
+# - Contact email set to admin@fidevops.xyz by automation. If you'd like a different contact
+#   email (for expiry notices), tell me and I'll update the file.
+# - After applying, create a Certificate resource for the host (the existing ArgoCD ingress in
+#   infra/k8s/argocd-ingress.yaml already references a secretName: argocd-server-tls and the
+#   annotation cert-manager.io/cluster-issuer should be updated to 'letsencrypt-prod-http01' or
+#   you may leave the ingress annotation and update the ingress file accordingly.
