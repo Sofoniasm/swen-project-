@@ -4,6 +4,12 @@ variable "aws_region" {
   default     = "us-east-1"
 }
 
+variable "cluster_version" {
+  description = "Kubernetes version for the EKS cluster (must be supported in the target region)"
+  type        = string
+  default     = "1.25"
+}
+
 variable "cluster_name" {
   description = "EKS cluster name"
   type        = string
