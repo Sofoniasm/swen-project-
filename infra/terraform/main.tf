@@ -3,7 +3,9 @@ terraform {
   required_providers {
     aws = {
       source  = "hashicorp/aws"
-      version = ">= 4.0"
+      # Pin to the 4.x series so modules expecting older aws provider arguments
+      # (used by some v3.x of the VPC module) remain compatible.
+      version = "~> 4.0"
     }
   }
 }
