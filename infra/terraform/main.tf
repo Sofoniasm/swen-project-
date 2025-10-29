@@ -40,7 +40,10 @@ module "eks" {
   version         = "~> 18.0"
 
   cluster_name    = var.cluster_name
-  cluster_version = "1.27"
+  # Use a supported EKS Kubernetes version. 1.27 was rejected by the AWS API
+  # in the runner. Pin to 1.26 which is widely supported (you can change
+  # this later via a variable if you want).
+  cluster_version = "1.26"
 
   # Provide the created VPC/subnets to the EKS module
   vpc_id     = module.vpc.vpc_id
