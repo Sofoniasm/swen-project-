@@ -15,6 +15,11 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Prepare lowercase owner
+        run: |
+          # Normalize repository owner to lowercase to satisfy Docker tag rules
+          echo "REPO_OWNER_LOWER=$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')" >> $GITHUB_ENV
+
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v2
 
@@ -35,8 +40,8 @@ jobs:
           file: ./Dockerfile.backend
           push: true
           tags: |
-            ghcr.io/${{ toLower(github.repository_owner) }}/swen-project-backend:main
-            ghcr.io/${{ toLower(github.repository_owner) }}/swen-project-backend:${{ github.sha }}
+            ghcr.io/${{ env.REPO_OWNER_LOWER }}/swen-project-backend:main
+            ghcr.io/${{ env.REPO_OWNER_LOWER }}/swen-project-backend:${{ github.sha }}
 
       - name: Build and push frontend image
         uses: docker/build-push-action@v4
@@ -45,13 +50,13 @@ jobs:
           file: ./frontend/Dockerfile
           push: true
           tags: |
-            ghcr.io/${{ toLower(github.repository_owner) }}/swen-project-frontend:main
-            ghcr.io/${{ toLower(github.repository_owner) }}/swen-project-frontend:${{ github.sha }}
+            ghcr.io/${{ env.REPO_OWNER_LOWER }}/swen-project-frontend:main
+            ghcr.io/${{ env.REPO_OWNER_LOWER }}/swen-project-frontend:${{ github.sha }}
 
       - name: Save pushed image refs
         run: |
-          echo "BACKEND_IMAGE=ghcr.io/${{ toLower(github.repository_owner) }}/swen-project-backend:${{ github.sha }}" >> images.properties
-          echo "FRONTEND_IMAGE=ghcr.io/${{ toLower(github.repository_owner) }}/swen-project-frontend:${{ github.sha }}" >> images.properties
+          echo "BACKEND_IMAGE=ghcr.io/${{ env.REPO_OWNER_LOWER }}/swen-project-backend:${{ github.sha }}" >> images.properties
+          echo "FRONTEND_IMAGE=ghcr.io/${{ env.REPO_OWNER_LOWER }}/swen-project-frontend:${{ github.sha }}" >> images.properties
 
       - name: Upload image refs artifact
         uses: actions/upload-artifact@v4
@@ -69,8 +74,8 @@ jobs:
       - name: Create image update branch and PR
         if: always()
         env:
-          IMAGE_BACKEND: ghcr.io/${{ toLower(github.repository_owner) }}/swen-project-backend:${{ github.sha }}
-          IMAGE_FRONTEND: ghcr.io/${{ toLower(github.repository_owner) }}/swen-project-frontend:${{ github.sha }}
+          IMAGE_BACKEND: ghcr.io/${{ env.REPO_OWNER_LOWER }}/swen-project-backend:${{ github.sha }}
+          IMAGE_FRONTEND: ghcr.io/${{ env.REPO_OWNER_LOWER }}/swen-project-frontend:${{ github.sha }}
         run: |
           git config user.name "github-actions"
           git config user.email "actions@github.com"
