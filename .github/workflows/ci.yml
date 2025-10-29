@@ -37,11 +37,11 @@ jobs:
         run: |
           if [ -f frontend/package.json ]; then docker build -f Dockerfile.frontend -t aiops-frontend:latest .; else echo "No frontend/package.json; skipping frontend build"; fi
       - name: Publish to GHCR (optional)
-        if: ${{ secrets.GHCR_TOKEN != '' }}
         env:
           GHCR_TOKEN: ${{ secrets.GHCR_TOKEN }}
         run: |
+          if [ -z "$GHCR_TOKEN" ]; then echo "GHCR_TOKEN not set, skipping publish"; exit 0; fi
           echo "$GHCR_TOKEN" | docker login ghcr.io -u $GITHUB_ACTOR --password-stdin
-          docker tag aiops-backend:latest ghcr.io/${{ github.repository }}/aiops-backend:latest
-          docker push ghcr.io/${{ github.repository }}/aiops-backend:latest
-          if [ -f frontend/package.json ]; then docker tag aiops-frontend:latest ghcr.io/${{ github.repository }}/aiops-frontend:latest && docker push ghcr.io/${{ github.repository }}/aiops-frontend:latest; fi
+          docker tag aiops-backend:latest ghcr.io/${{ toLower(github.repository) }}/aiops-backend:latest
+          docker push ghcr.io/${{ toLower(github.repository) }}/aiops-backend:latest
+          if [ -f frontend/package.json ]; then docker tag aiops-frontend:latest ghcr.io/${{ toLower(github.repository) }}/aiops-frontend:latest && docker push ghcr.io/${{ toLower(github.repository) }}/aiops-frontend:latest; fi
