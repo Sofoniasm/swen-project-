@@ -35,6 +35,23 @@ jobs:
         working-directory: infra/terraform
         run: terraform init -input=false
 
+      - name: Import existing CloudWatch log group into Terraform state (if present)
+        working-directory: infra/terraform
+        run: |
+          # The EKS module creates a CloudWatch log group named: /aws/eks/<cluster_name>/cluster
+          # We use the known cluster name used in the Terraform config to detect an existing
+          # log group and import it into the Terraform state to avoid ResourceAlreadyExistsException.
+          LG_NAME="/aws/eks/aiops-eks-cluster/cluster"
+          echo "Checking for existing CloudWatch Log Group: ${LG_NAME}"
+          EXISTING=$(aws logs describe-log-groups --log-group-name-prefix "${LG_NAME}" --region "$AWS_REGION" --query 'logGroups[0].logGroupName' --output text 2>/dev/null || true)
+          if [ -n "${EXISTING}" ] && [ "${EXISTING}" != "None" ]; then
+            echo "Found existing log group: ${EXISTING} — attempting terraform import"
+            # Import into the module resource address used by the module
+            terraform import -lock=false 'module.eks.aws_cloudwatch_log_group.this[0]' "${LG_NAME}" || true
+          else
+            echo "No existing CloudWatch log group found: ${LG_NAME}"
+          fi
+
       - name: Terraform apply (create EKS)
         working-directory: infra/terraform
         run: terraform apply -auto-approve
