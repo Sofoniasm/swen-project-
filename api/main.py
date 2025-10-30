@@ -1,12 +1,15 @@
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Request
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
+from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
 import logging
 from typing import List, Optional
 import os
 import asyncio
 from pydantic import BaseModel, Field
+import random
+import time
 
 
 # Models for deploy requests and computed decisions
@@ -52,6 +55,14 @@ def compute_price(provider: str, cpu: float, memory: float) -> float:
     return round(cpu * p['cpu_per_unit'] + memory * p['mem_per_mb'], 6)
 
 app = FastAPI()
+# Allow local dev origins to access the API (helps when frontend and backend run on different ports)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 logger = logging.getLogger("api")
 logging.basicConfig(level=logging.INFO)
 
@@ -85,6 +96,69 @@ class ConnectionManager:
         self.active_connections = living
 
 manager = ConnectionManager()
+
+
+async def _broadcast_demo_telemetry_loop():
+    """Background task that periodically generates demo telemetry and decisions.
+    This helps local dev and demo runs where no external telemetry producer exists.
+    """
+    services = ['fetcher','indexer','ranker','ingestor','api']
+    providers = ['aws','gcp','azure','oracle']
+    regions = ['us-east-1','eu-west-1','ap-south-1','us-west-2']
+    while True:
+        try:
+            # generate a telemetry entry
+            cpu = round(random.uniform(0.1, 2.0), 2)
+            memory = round(random.uniform(32, 1024), 2)
+            latency_ms = int(random.uniform(10, 350))
+            cost_per_min = round(cpu * 0.005 + (memory/1024.0) * 0.002 + latency_ms/10000.0, 6)
+            entry = {
+                'timestamp': int(time.time() * 1000),
+                'service': random.choice(services),
+                'provider': random.choice(providers),
+                'region': random.choice(regions),
+                'cpu': cpu,
+                'memory': memory,
+                'latency_ms': latency_ms,
+                'cost_per_min': cost_per_min,
+            }
+            telemetry_store.append(entry)
+            # broadcast last 10 entries to WS clients
+            try:
+                await manager.broadcast({"telemetry_tail": [t for t in telemetry_store if isinstance(t, dict)][-10:]})
+            except Exception:
+                # ignore broadcast failures (clients may disconnect)
+                pass
+
+            # occasionally create a decision
+            if random.random() < 0.25:
+                decision = {
+                    'service': entry['service'],
+                    'from_provider': None,
+                    'recommended_provider': random.choice(providers),
+                    'region': entry['region'],
+                    'reason': 'demo auto-decision',
+                    'confidence': round(random.uniform(0.5, 0.98), 2),
+                }
+                decision_store.append(decision)
+                try:
+                    await manager.broadcast({"decisions_tail": [d for d in decision_store if isinstance(d, dict)][-10:]})
+                except Exception:
+                    pass
+
+        except Exception:
+            # don't let the loop die
+            pass
+        await asyncio.sleep(3)
+
+
+@app.on_event("startup")
+async def _start_demo_broadcaster():
+    # start background demo broadcaster (non-blocking)
+    try:
+        asyncio.create_task(_broadcast_demo_telemetry_loop())
+    except Exception:
+        pass
 
 @app.get("/healthz")
 async def healthz():
