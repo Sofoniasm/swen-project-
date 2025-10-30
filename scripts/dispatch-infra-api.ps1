@@ -14,7 +14,13 @@ if (-not $env:GITHUB_TOKEN) {
 $headers = @{ Authorization = "Bearer $($env:GITHUB_TOKEN)"; Accept = 'application/vnd.github+json' }
 
 Write-Host "Dispatching workflow '$Workflow' on ref '$Ref' for $owner/$repo..."
-Invoke-RestMethod -Method Post -Uri "https://api.github.com/repos/$owner/$repo/actions/workflows/$Workflow/dispatches" -Headers $headers -Body (@{ref=$Ref} | ConvertTo-Json)
+try {
+  $resp = Invoke-RestMethod -Method Post -Uri "https://api.github.com/repos/$owner/$repo/actions/workflows/$Workflow/dispatches" -Headers $headers -Body (@{ref=$Ref} | ConvertTo-Json) -ErrorAction Stop
+} catch {
+  Write-Error "Failed to dispatch workflow. Response: $($_.Exception.Response.Content.ReadAsStringAsync().Result)"
+  Write-Error "If the workflow lacks a 'workflow_dispatch' trigger add 'workflow_dispatch:' under 'on:' in the workflow YAML."
+  exit 4
+}
 
 Write-Host "Waiting for run to be created..."
 $runId = $null

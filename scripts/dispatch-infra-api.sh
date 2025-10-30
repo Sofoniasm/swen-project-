@@ -17,7 +17,15 @@ fi
 AUTH_HEADER=( -H "Authorization: Bearer ${GITHUB_TOKEN}" -H "Accept: application/vnd.github+json" )
 
 echo "Dispatching workflow '$WORKFLOW' on ref '$REF' for $OWNER/$REPO..."
-curl -s "${AUTH_HEADER[@]}" -X POST "https://api.github.com/repos/${OWNER}/${REPO}/actions/workflows/${WORKFLOW}/dispatches" -d "{\"ref\":\"${REF}\"}"
+dispatch_response=$(curl -s -w "%%{http_code}" "${AUTH_HEADER[@]}" -X POST "https://api.github.com/repos/${OWNER}/${REPO}/actions/workflows/${WORKFLOW}/dispatches" -d "{\"ref\":\"${REF}\"}")
+http_code="${dispatch_response: -3}"
+body="${dispatch_response::${#dispatch_response}-3}"
+if [ "$http_code" != "204" ]; then
+  echo "Failed to dispatch workflow: HTTP $http_code"
+  echo "Response body: $body"
+  echo "If the workflow does not have a 'workflow_dispatch' trigger, add 'workflow_dispatch:' under 'on:' in the workflow YAML."
+  exit 4
+fi
 
 echo "Waiting for a run to be created..."
 run_id=""
@@ -25,8 +33,8 @@ for i in {1..30}; do
   sleep 2
   out=$(curl -s "${AUTH_HEADER[@]}" "https://api.github.com/repos/${OWNER}/${REPO}/actions/workflows/${WORKFLOW}/runs?per_page=10")
   run_id=$(python - <<PY
-import sys,json,os
-ref=os.environ['REF']
+import sys,json
+ref = sys.argv[1]
 r=json.load(sys.stdin)
 for run in r.get('workflow_runs',[]):
     if run.get('head_branch')==ref:
@@ -34,7 +42,7 @@ for run in r.get('workflow_runs',[]):
         sys.exit(0)
 sys.exit(1)
 PY
-  <<<"$out" 2>/dev/null || true)
+  "$REF" <<<"$out" 2>/dev/null || true)
   if [ -n "$run_id" ]; then
     echo "Found run id: $run_id"
     break
