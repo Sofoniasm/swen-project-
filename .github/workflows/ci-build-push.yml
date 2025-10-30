@@ -111,6 +111,3 @@ jobs:
           body: |
             This PR updates the Kubernetes manifests in `infra/k8s` to use images built by CI (tagged with the commit SHA). The ArgoCD application will pick these up and deploy them to the cluster once ArgoCD is installed and syncing.
           base: main
-          allow-empty: true
-          update-branch: true
-          maintainer-can-modify: true
