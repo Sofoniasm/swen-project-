@@ -139,32 +139,64 @@
   const API_BASE = (location.port === '8000') ? (location.protocol + '//' + location.hostname + ':8001') : '';
 
   // WebSocket connection (use backend host when frontend is served separately)
-  try{
-    const wsUrl = (location.protocol === 'https:' ? 'wss://' : 'ws://') + location.hostname + (API_BASE ? ':8001' : '') + '/ws';
-    const ws = new WebSocket(wsUrl);
-    ws.addEventListener('open', ()=> setStatus('connected (ws)'));
-    ws.addEventListener('close', ()=> setStatus('disconnected'));
-    ws.addEventListener('message', (ev)=>{
-      try{
-        const data = JSON.parse(ev.data);
-        if(data.telemetry_tail) applyTelemetryUpdate(data.telemetry_tail);
-        if(data.decisions_tail) applyDecisionUpdate(data.decisions_tail);
-      }catch(e){ console.error('ws parse', e); }
-    });
-  }catch(e){ console.warn('ws failed', e); setStatus('ws failed'); }
+  // Robust reconnect with backoff; if WS is unavailable we fall back to polling.
+  (function setupTransport(){
+    const base = API_BASE || '';
+    const host = location.hostname;
+    const wsHostPort = API_BASE ? '' : (location.port ? ':' + location.port : '');
+    const wsPath = (location.protocol === 'https:' ? 'wss://' : 'ws://') + host + (API_BASE ? '' : '') + '/ws';
 
-  // polling fallback (use API_BASE if set)
-  async function poll(){
-    try{
-      const base = API_BASE || '';
-      const [rt, rd] = await Promise.all([fetch(base + '/telemetry'), fetch(base + '/decisions')]);
-      if(rt.ok){ const t = await rt.json(); applyTelemetryUpdate(t); }
-      if(rd.ok){ const d = await rd.json(); applyDecisionUpdate(d); }
-      setStatus('connected (poll)');
-    }catch(e){ setStatus('disconnected'); }
-    setTimeout(poll, 4000);
-  }
-  setTimeout(poll, 1000);
+    let ws = null;
+    let reconnectMs = 1000;
+    let wsClosedByApp = false;
+
+    function connectWS(){
+      try{
+        // prefer same-origin ws endpoint; allow API proxy if needed
+        const url = (location.protocol === 'https:' ? 'wss://' : 'ws://') + location.hostname + (API_BASE ? '' : '') + '/ws';
+        ws = new WebSocket(url);
+        ws.addEventListener('open', ()=>{
+          reconnectMs = 1000;
+          setStatus('connected (ws)');
+        });
+        ws.addEventListener('close', ()=>{
+          if(!wsClosedByApp){
+            setStatus('ws disconnected');
+            // try reconnect with backoff
+            setTimeout(()=>{ reconnectMs = Math.min(30000, reconnectMs * 1.8); connectWS(); }, reconnectMs);
+          }
+        });
+        ws.addEventListener('error', (e)=>{ console.warn('ws error', e); ws.close(); });
+        ws.addEventListener('message', (ev)=>{
+          try{
+            const data = JSON.parse(ev.data);
+            if(data.telemetry_tail){ applyTelemetryUpdate(data.telemetry_tail); stopDemoTelemetry(); }
+            if(data.decisions_tail){ applyDecisionUpdate(data.decisions_tail); stopDemoTelemetry(); }
+          }catch(e){ console.error('ws parse', e); }
+        });
+      }catch(e){ console.warn('ws setup failed', e); }
+    }
+
+    // start ws and also start polling fallback (poll will be quiet if ws delivers data)
+    connectWS();
+
+    // polling fallback: use interval so it runs reliably even if a fetch delays
+    async function pollOnce(){
+      try{
+        const telemetryResp = await fetch((API_BASE || '') + '/telemetry');
+        if(telemetryResp.ok){ const t = await telemetryResp.json(); if(t && t.length){ applyTelemetryUpdate(t); stopDemoTelemetry(); setStatus('connected (poll)'); return; } }
+        const decisionsResp = await fetch((API_BASE || '') + '/decisions');
+        if(decisionsResp.ok){ const d = await decisionsResp.json(); if(d && d.length){ applyDecisionUpdate(d); stopDemoTelemetry(); setStatus('connected (poll)'); return; } }
+        // if no telemetry returned, leave demo mode running (demoCheckLoop handles start/stop)
+      }catch(e){ console.debug('poll failed', e); }
+    }
+    // initial poll after short delay then regular polling
+    setTimeout(pollOnce, 1200);
+    setInterval(pollOnce, 4000);
+
+    // expose a graceful close if needed
+    window.__swendemo_close_ws = ()=>{ wsClosedByApp = true; if(ws){ ws.close(); } };
+  })();
 
   // --- Demo telemetry fallback: when backend returns no telemetry, simulate live data ---
   let _demoInterval = null;
