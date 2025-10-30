@@ -1,0 +1,118 @@
+name: Publish IAM policy and trigger infra
+
+on:
+  push:
+    paths:
+      - 'infra/terraform/iam/terraform-iam-policy.json'
+      - 'infra/terraform/iam/trust-policy.json'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+  actions: write
+
+jobs:
+  publish-and-run:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials (try OIDC, fallback to static)
+        id: cfgaws
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "Attempting OIDC assume (if AWS_ROLE_ARN present)"
+          if [ -n "${{ secrets.AWS_ROLE_ARN }}" ]; then
+            echo "Trying OIDC assume-role"
+            if aws sts get-caller-identity >/dev/null 2>&1; then
+              echo "Already have AWS creds in runner"
+            else
+              # Try OIDC via role-to-assume using the action
+              echo "Using aws-actions/configure-aws-credentials to assume role"
+              echo "role-to-assume=${{ secrets.AWS_ROLE_ARN }}"
+            fi
+          fi
+          # Use the action for actual configuration in the step below
+
+      - name: Configure AWS credentials with action
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ secrets.AWS_REGION }}
+        continue-on-error: true
+
+      - name: Fallback to static AWS keys if OIDC failed
+        shell: bash
+        run: |
+          set -euo pipefail
+          if aws sts get-caller-identity >/dev/null 2>&1; then
+            echo "AWS credentials available via OIDC or environment"
+            aws sts get-caller-identity --output json
+          else
+            echo "OIDC assume failed - attempting static credentials"
+            if [ -n "${{ secrets.AWS_ACCESS_KEY_ID }}" ] && [ -n "${{ secrets.AWS_SECRET_ACCESS_KEY }}" ]; then
+              echo "Configuring static AWS credentials"
+              aws configure set aws_access_key_id "${{ secrets.AWS_ACCESS_KEY_ID }}"
+              aws configure set aws_secret_access_key "${{ secrets.AWS_SECRET_ACCESS_KEY }}"
+              aws configure set region "${{ secrets.AWS_REGION }}"
+              aws sts get-caller-identity --output json
+            else
+              echo "No usable AWS credentials available. Aborting."; exit 1
+            fi
+          fi
+
+      - name: Publish or update managed policy
+        env:
+          POLICY_NAME: aiops-actions-terraform-policy
+          POLICY_FILE: infra/terraform/iam/terraform-iam-policy.json
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "Checking for existing managed policy"
+          ARN=$(aws iam list-policies --scope Local --query "Policies[?PolicyName=='${POLICY_NAME}'].Arn | [0]" --output text)
+          if [ -z "${ARN}" ] || [ "${ARN}" = "None" ]; then
+            echo "Policy not found; creating"
+            ARN=$(aws iam create-policy --policy-name "${POLICY_NAME}" --policy-document file://"${POLICY_FILE}" --query 'Policy.Arn' --output text)
+            echo "Created policy: ${ARN}"
+          else
+            echo "Found existing policy: ${ARN}"
+            echo "Creating new policy version and setting as default"
+            # If 5 versions exist, delete the oldest non-default to make room
+            VERSIONS=$(aws iam list-policy-versions --policy-arn "${ARN}" --query 'Versions[?IsDefaultVersion==`false`].VersionId' --output text)
+            if [ $(echo "$VERSIONS" | wc -w) -ge 5 ]; then
+              OLDEST=$(aws iam list-policy-versions --policy-arn "${ARN}" --query 'Versions[?IsDefaultVersion==`false`]|sort_by(@,&CreateDate)[0].VersionId' --output text)
+              if [ -n "${OLDEST}" ]; then
+                echo "Deleting oldest non-default version: ${OLDEST}"
+                aws iam delete-policy-version --policy-arn "${ARN}" --version-id "${OLDEST}"
+              fi
+            fi
+            aws iam create-policy-version --policy-arn "${ARN}" --policy-document file://"${POLICY_FILE}" --set-as-default
+            echo "Updated policy versions for ${ARN}"
+          fi
+
+      - name: Apply updated trust policy to role
+        shell: bash
+        run: |
+          set -euo pipefail
+          ROLE_NAME=aiops-github-actions-oidc-role
+          TRUST_FILE=infra/terraform/iam/trust-policy.json
+          echo "Updating assume role policy for ${ROLE_NAME}"
+          aws iam update-assume-role-policy --role-name "${ROLE_NAME}" --policy-document file://"${TRUST_FILE}"
+          echo "Updated trust policy on role ${ROLE_NAME}"
+
+      - name: Dispatch infra workflow (terraform-apply)
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          REPO="${{ github.repository }}"
+          WORKFLOW_FILE="terraform-apply.yml"
+          echo "Triggering workflow ${WORKFLOW_FILE} on repo ${REPO}"
+          curl -s -X POST -H "Authorization: Bearer ${GITHUB_TOKEN}" -H "Accept: application/vnd.github+json" \
+            https://api.github.com/repos/${REPO}/actions/workflows/${WORKFLOW_FILE}/dispatches \
+            -d '{"ref":"main"}'
+          echo "Dispatched infra workflow"
