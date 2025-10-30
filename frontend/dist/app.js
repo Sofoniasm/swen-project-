@@ -12,6 +12,8 @@
   const dbgPoll = (typeof document !== 'undefined') ? document.getElementById('dbg-poll-val') : null;
   const dbgLast = (typeof document !== 'undefined') ? document.getElementById('dbg-last-val') : null;
   const dbgRows = (typeof document !== 'undefined') ? document.getElementById('dbg-rows-val') : null;
+  const dbgRenderMs = (typeof document !== 'undefined') ? document.getElementById('dbg-render-ms') : null;
+  const statusBadge = (typeof document !== 'undefined') ? document.getElementById('status') : null;
   const dbgForce = (typeof document !== 'undefined') ? document.getElementById('dbg-force') : null;
   const dbgTestBtn = (typeof document !== 'undefined') ? document.getElementById('dbg-test-api') : null;
   const dbgTelemetryCount = (typeof document !== 'undefined') ? document.getElementById('dbg-telemetry-count') : null;
@@ -30,8 +32,27 @@
 
   function setStatus(s){ statusEl.textContent = s; }
 
+  // set badge color helper
+  function setStatusBadge(state){
+    try{
+      if(!statusBadge) return;
+      if(state === 'connected (ws)' || state === 'connected (poll)'){
+        statusBadge.style.background = '#16a34a'; // green
+        statusBadge.style.color = '#fff';
+      }else if(state === 'demo mode'){
+        statusBadge.style.background = '#f59e0b'; // amber
+        statusBadge.style.color = '#042';
+      }else{
+        statusBadge.style.background = '#cfcfcf'; // gray
+        statusBadge.style.color = '#012';
+      }
+      statusBadge.textContent = s;
+    }catch(e){/*noop*/}
+  }
+
   function renderTelemetry(rows){
     // Use requestAnimationFrame to avoid blocking the main thread during heavy updates
+    const start = performance.now();
     window.requestAnimationFrame(()=>{
       telemetryTableBody.innerHTML = '';
       rows.forEach(r=>{
@@ -49,6 +70,8 @@
       });
       // update debug rows count
       try{ if(dbgRows) dbgRows.textContent = rows.length; }catch(e){}
+      const dur = Math.max(0, Math.round(performance.now() - start));
+      try{ if(dbgRenderMs) dbgRenderMs.textContent = dur + 'ms'; }catch(e){}
     });
   }
 
@@ -184,12 +207,14 @@
         ws.addEventListener('open', ()=>{
           reconnectMs = 1000;
           setStatus('connected (ws)');
+          setStatusBadge('connected (ws)');
           try{ if(dbgWs) dbgWs.textContent = 'open'; }catch(e){}
         });
         ws.addEventListener('close', ()=>{
           try{ if(dbgWs) dbgWs.textContent = 'closed'; }catch(e){}
           if(!wsClosedByApp){
             setStatus('ws disconnected');
+            setStatusBadge('ws disconnected');
             // try reconnect with backoff
             setTimeout(()=>{ reconnectMs = Math.min(30000, reconnectMs * 1.8); connectWS(); }, reconnectMs);
           }
@@ -205,8 +230,8 @@
       }catch(e){ console.warn('ws setup failed', e); }
     }
 
-    // start ws and also start polling fallback (poll will be quiet if ws delivers data)
-    connectWS();
+  // start ws and also start polling fallback (poll will be quiet if ws delivers data)
+  connectWS();
 
     // polling fallback: use interval so it runs reliably even if a fetch delays
     async function pollOnce(){
@@ -218,9 +243,9 @@
         // if no telemetry returned, leave demo mode running (demoCheckLoop handles start/stop)
       }catch(e){ console.debug('poll failed', e); try{ if(dbgPoll) dbgPoll.textContent = 'fail'; }catch(err){} }
     }
-    // initial poll after short delay then regular polling
-    setTimeout(pollOnce, 1200);
-    setInterval(pollOnce, 4000);
+  // initial poll after short delay then regular polling
+  setTimeout(pollOnce, 1200);
+  setInterval(pollOnce, 4000);
 
     // expose a graceful close if needed
     window.__swendemo_close_ws = ()=>{ wsClosedByApp = true; if(ws){ ws.close(); } };

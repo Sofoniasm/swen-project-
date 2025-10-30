@@ -247,6 +247,18 @@ async def websocket_endpoint(websocket: WebSocket):
     except WebSocketDisconnect:
         manager.disconnect(websocket)
 
+
+@app.get("/status")
+async def status():
+    """Return basic runtime counts for telemetry/decisions and active web socket connections.
+
+    Useful for lightweight health/debug checks from the frontend or CI.
+    """
+    tcount = sum(1 for t in telemetry_store if isinstance(t, dict))
+    dcount = sum(1 for d in decision_store if isinstance(d, dict))
+    ws_count = len(manager.active_connections)
+    return {"telemetry_count": tcount, "decisions_count": dcount, "ws_active": ws_count}
+
 # Serve static frontend if present
 FRONTEND_DIST = os.path.join(os.path.dirname(__file__), '..', 'frontend', 'dist')
 if os.path.isdir(FRONTEND_DIST):
