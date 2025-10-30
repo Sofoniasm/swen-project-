@@ -8,6 +8,10 @@
   const metricConfidence = document.getElementById('metric-confidence');
   const econ1h = document.getElementById('econ-1h');
   const econSave = document.getElementById('econ-save');
+  const dbgWs = (typeof document !== 'undefined') ? document.getElementById('dbg-ws-val') : null;
+  const dbgPoll = (typeof document !== 'undefined') ? document.getElementById('dbg-poll-val') : null;
+  const dbgLast = (typeof document !== 'undefined') ? document.getElementById('dbg-last-val') : null;
+  const dbgRows = (typeof document !== 'undefined') ? document.getElementById('dbg-rows-val') : null;
   const deployForm = document.getElementById('deploy-form');
   const dfService = document.getElementById('df-service');
   const dfSize = document.getElementById('df-size');
@@ -39,6 +43,8 @@
           <td>$${(r.cost_per_min||0).toFixed(5)}</td>`;
         telemetryTableBody.appendChild(tr);
       });
+      // update debug rows count
+      try{ if(dbgRows) dbgRows.textContent = rows.length; }catch(e){}
     });
   }
 
@@ -81,7 +87,10 @@
     metricServices.textContent = `${m.services}`;
     metricConfidence.textContent = m.avgConf ? `${(m.avgConf*100).toFixed(0)}%` : '—';
     econ1h.textContent = `$${(m.spend*60).toFixed(3)}`;
-    econSave.textContent = '—';
+      econSave.textContent = '—';
+      // debug: last update and rows
+      try{ if(dbgLast) dbgLast.textContent = new Date().toLocaleTimeString(); }catch(e){}
+      try{ if(dbgRows) dbgRows.textContent = latestTelemetry.length; }catch(e){}
     }catch(e){ console.error('applyTelemetryUpdate failed', e); }
   }
 
@@ -171,20 +180,22 @@
         ws.addEventListener('open', ()=>{
           reconnectMs = 1000;
           setStatus('connected (ws)');
+          try{ if(dbgWs) dbgWs.textContent = 'open'; }catch(e){}
         });
         ws.addEventListener('close', ()=>{
+          try{ if(dbgWs) dbgWs.textContent = 'closed'; }catch(e){}
           if(!wsClosedByApp){
             setStatus('ws disconnected');
             // try reconnect with backoff
             setTimeout(()=>{ reconnectMs = Math.min(30000, reconnectMs * 1.8); connectWS(); }, reconnectMs);
           }
         });
-        ws.addEventListener('error', (e)=>{ console.warn('ws error', e); ws.close(); });
+        ws.addEventListener('error', (e)=>{ console.warn('ws error', e); try{ if(dbgWs) dbgWs.textContent = 'error'; }catch(err){} ws.close(); });
         ws.addEventListener('message', (ev)=>{
           try{
             const data = JSON.parse(ev.data);
-            if(data.telemetry_tail){ applyTelemetryUpdate(data.telemetry_tail); stopDemoTelemetry(); }
-            if(data.decisions_tail){ applyDecisionUpdate(data.decisions_tail); stopDemoTelemetry(); }
+            if(data.telemetry_tail){ applyTelemetryUpdate(data.telemetry_tail); stopDemoTelemetry(); try{ if(dbgLast) dbgLast.textContent = new Date().toLocaleTimeString(); }catch(e){} }
+            if(data.decisions_tail){ applyDecisionUpdate(data.decisions_tail); stopDemoTelemetry(); try{ if(dbgLast) dbgLast.textContent = new Date().toLocaleTimeString(); }catch(e){} }
           }catch(e){ console.error('ws parse', e); }
         });
       }catch(e){ console.warn('ws setup failed', e); }
@@ -197,11 +208,11 @@
     async function pollOnce(){
       try{
         const telemetryResp = await fetch((API_BASE || '') + '/telemetry');
-        if(telemetryResp.ok){ const t = await telemetryResp.json(); if(t && t.length){ applyTelemetryUpdate(t); stopDemoTelemetry(); setStatus('connected (poll)'); return; } }
+        if(telemetryResp.ok){ const t = await telemetryResp.json(); if(t && t.length){ applyTelemetryUpdate(t); stopDemoTelemetry(); setStatus('connected (poll)'); try{ if(dbgPoll) dbgPoll.textContent = 'ok'; }catch(e){} return; } }
         const decisionsResp = await fetch((API_BASE || '') + '/decisions');
-        if(decisionsResp.ok){ const d = await decisionsResp.json(); if(d && d.length){ applyDecisionUpdate(d); stopDemoTelemetry(); setStatus('connected (poll)'); return; } }
+        if(decisionsResp.ok){ const d = await decisionsResp.json(); if(d && d.length){ applyDecisionUpdate(d); stopDemoTelemetry(); setStatus('connected (poll)'); try{ if(dbgPoll) dbgPoll.textContent = 'ok'; }catch(e){} return; } }
         // if no telemetry returned, leave demo mode running (demoCheckLoop handles start/stop)
-      }catch(e){ console.debug('poll failed', e); }
+      }catch(e){ console.debug('poll failed', e); try{ if(dbgPoll) dbgPoll.textContent = 'fail'; }catch(err){} }
     }
     // initial poll after short delay then regular polling
     setTimeout(pollOnce, 1200);

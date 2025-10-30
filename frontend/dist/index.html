@@ -94,6 +94,14 @@
     </main>
 
     <footer class="footer">Prototype · Simulation mode · Local demo</footer>
+    <!-- Debug panel (injected by app.js) -->
+    <div id="swendebug" style="position:fixed;right:12px;bottom:12px;background:rgba(0,0,0,0.45);color:#cfe8ff;padding:8px 10px;border-radius:6px;font-size:12px;z-index:9999;box-shadow:0 4px 14px rgba(0,0,0,0.6);min-width:200px">
+      <div><strong>SWEN Debug</strong></div>
+      <div id="dbg-ws" style="margin-top:6px">ws: <span id="dbg-ws-val">—</span></div>
+      <div id="dbg-poll">poll: <span id="dbg-poll-val">—</span></div>
+      <div id="dbg-last" style="margin-top:6px">last update: <span id="dbg-last-val">—</span></div>
+      <div id="dbg-rows">rows: <span id="dbg-rows-val">0</span></div>
+    </div>
   </div>
 
   <script src="/app.js"></script>
