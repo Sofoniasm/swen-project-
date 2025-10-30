@@ -202,7 +202,15 @@
     function connectWS(){
       try{
         // prefer same-origin ws endpoint; allow API proxy if needed
-        const url = (location.protocol === 'https:' ? 'wss://' : 'ws://') + location.hostname + (API_BASE ? '' : '') + '/ws';
+        const wsProto = (location.protocol === 'https:' ? 'wss://' : 'ws://');
+        // determine host: if API_BASE is set (absolute with protocol), use its host; otherwise use location.host (includes port)
+        let wsHost;
+        if(API_BASE){
+          try{ wsHost = new URL(API_BASE).host; }catch(e){ wsHost = API_BASE.replace(/^https?:\/\//,'').replace(/\/$/,''); }
+        }else{
+          wsHost = location.host; // includes port when non-default
+        }
+        const url = wsProto + wsHost + '/ws';
         ws = new WebSocket(url);
         ws.addEventListener('open', ()=>{
           reconnectMs = 1000;
