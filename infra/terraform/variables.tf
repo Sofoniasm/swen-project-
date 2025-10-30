@@ -38,3 +38,9 @@ variable "tags" {
     "Project"   = "aiops"
   }
 }
+
+variable "existing_vpc_id" {
+  description = "If set, use this existing VPC ID instead of creating a new VPC. Helpful when VPC quotas are reached."
+  type        = string
+  default     = ""
+}

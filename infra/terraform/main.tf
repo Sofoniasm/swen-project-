@@ -33,6 +33,12 @@ module "vpc" {
   tags = var.tags
 }
 
+# If an existing VPC is provided, skip creating a new one and read subnet IDs from that VPC
+data "aws_subnet_ids" "selected" {
+  count  = var.existing_vpc_id != "" ? 1 : 0
+  vpc_id = var.existing_vpc_id
+}
+
 module "eks" {
   source          = "terraform-aws-modules/eks/aws"
   # Pin to v18.x which accepts the legacy inputs used below (create_vpc, node_groups).
@@ -44,8 +50,8 @@ module "eks" {
   cluster_version = var.cluster_version
 
   # Provide the created VPC/subnets to the EKS module
-  vpc_id     = module.vpc.vpc_id
-  subnet_ids = module.vpc.private_subnets
+  vpc_id     = var.existing_vpc_id != "" ? var.existing_vpc_id : module.vpc[0].vpc_id
+  subnet_ids = var.existing_vpc_id != "" ? data.aws_subnet_ids.selected[0].ids : module.vpc[0].private_subnets
 
   # Minimal managed node group (single small instance to reduce cost)
   eks_managed_node_groups = {
