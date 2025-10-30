@@ -12,6 +12,10 @@
   const dbgPoll = (typeof document !== 'undefined') ? document.getElementById('dbg-poll-val') : null;
   const dbgLast = (typeof document !== 'undefined') ? document.getElementById('dbg-last-val') : null;
   const dbgRows = (typeof document !== 'undefined') ? document.getElementById('dbg-rows-val') : null;
+  const dbgForce = (typeof document !== 'undefined') ? document.getElementById('dbg-force') : null;
+  const dbgTestBtn = (typeof document !== 'undefined') ? document.getElementById('dbg-test-api') : null;
+  const dbgTelemetryCount = (typeof document !== 'undefined') ? document.getElementById('dbg-telemetry-count') : null;
+  const dbgDecisionsCount = (typeof document !== 'undefined') ? document.getElementById('dbg-decisions-count') : null;
   const deployForm = document.getElementById('deploy-form');
   const dfService = document.getElementById('df-service');
   const dfSize = document.getElementById('df-size');
@@ -265,6 +269,7 @@
   }
 
   function stopDemoTelemetry(){
+    if(dbgForce && dbgForce.checked) return; // honor forced demo toggle
     if(_demoInterval){ clearInterval(_demoInterval); _demoInterval = null; setStatus('connected'); }
   }
 
@@ -276,5 +281,24 @@
     }catch(e){/*ignore*/}
     setTimeout(demoCheckLoop, 5000);
   })();
+
+  // wire debug controls (force demo toggle and test API button)
+  if(dbgForce){
+    dbgForce.addEventListener('change', ()=>{
+      if(dbgForce.checked) startDemoTelemetry(); else stopDemoTelemetry();
+    });
+  }
+
+  if(dbgTestBtn){
+    dbgTestBtn.addEventListener('click', async ()=>{
+      try{
+        const tr = await fetch((API_BASE||'') + '/telemetry');
+        const dr = await fetch((API_BASE||'') + '/decisions');
+        if(tr.ok){ const t = await tr.json(); if(dbgTelemetryCount) dbgTelemetryCount.textContent = (Array.isArray(t)?t.length:'-'); }
+        if(dr.ok){ const d = await dr.json(); if(dbgDecisionsCount) dbgDecisionsCount.textContent = (Array.isArray(d)?d.length:'-'); }
+        try{ if(dbgPoll) dbgPoll.textContent = (tr.ok && dr.ok) ? 'ok' : 'partial'; }catch(e){}
+      }catch(e){ try{ if(dbgPoll) dbgPoll.textContent = 'fail'; }catch(_){} }
+    });
+  }
 
 })();

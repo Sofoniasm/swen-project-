@@ -95,12 +95,19 @@
 
     <footer class="footer">Prototype · Simulation mode · Local demo</footer>
     <!-- Debug panel (injected by app.js) -->
-    <div id="swendebug" style="position:fixed;right:12px;bottom:12px;background:rgba(0,0,0,0.45);color:#cfe8ff;padding:8px 10px;border-radius:6px;font-size:12px;z-index:9999;box-shadow:0 4px 14px rgba(0,0,0,0.6);min-width:200px">
-      <div><strong>SWEN Debug</strong></div>
+    <div id="swendebug" style="position:fixed;right:12px;bottom:12px;background:rgba(0,0,0,0.45);color:#cfe8ff;padding:8px 10px;border-radius:6px;font-size:12px;z-index:9999;box-shadow:0 4px 14px rgba(0,0,0,0.6);min-width:220px">
+      <div style="display:flex;justify-content:space-between;align-items:center"><strong>SWEN Debug</strong>
+        <label style="font-size:12px;margin-left:8px;display:flex;align-items:center;gap:6px"><input id="dbg-force" type="checkbox"> Force demo</label>
+      </div>
       <div id="dbg-ws" style="margin-top:6px">ws: <span id="dbg-ws-val">—</span></div>
       <div id="dbg-poll">poll: <span id="dbg-poll-val">—</span></div>
       <div id="dbg-last" style="margin-top:6px">last update: <span id="dbg-last-val">—</span></div>
       <div id="dbg-rows">rows: <span id="dbg-rows-val">0</span></div>
+      <div style="margin-top:8px;display:flex;gap:6px">
+        <button id="dbg-test-api" style="font-size:12px;padding:6px">Test API</button>
+        <div style="font-size:12px;color:var(--muted);">telemetry: <span id="dbg-telemetry-count">-</span></div>
+        <div style="font-size:12px;color:var(--muted);">decisions: <span id="dbg-decisions-count">-</span></div>
+      </div>
     </div>
   </div>
 
