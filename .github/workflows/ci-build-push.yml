@@ -64,7 +64,7 @@ jobs:
       - name: Upload image refs artifact
         uses: actions/upload-artifact@v4
         with:
-          name: images
+          name: images-${{ github.sha }}
           path: images.properties
 
 
