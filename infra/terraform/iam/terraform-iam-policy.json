@@ -66,6 +66,7 @@
   "iam:ListPolicyVersions",
   "iam:ListPolicies",
         "iam:TagRole",
+  "iam:UpdateAssumeRolePolicy",
         "iam:DeleteRole",
         "iam:AttachRolePolicy",
         "iam:DetachRolePolicy",
