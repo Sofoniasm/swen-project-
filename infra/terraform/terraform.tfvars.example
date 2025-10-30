@@ -1,0 +1,12 @@
+## Example terraform.tfvars for local runs
+# Copy this to infra/terraform/terraform.tfvars and edit values as needed.
+
+# If you already have a VPC you want to reuse, set existing_vpc_id to its id and
+# the Terraform configuration will select existing subnets. Otherwise leave empty
+# to allow Terraform to create a new VPC (may hit VPC quota limits in the account).
+existing_vpc_id = ""
+
+# Kubernetes cluster name
+cluster_name = "aiops-eks-cluster"
+
+# Optional: customize other variables here as in variables.tf
