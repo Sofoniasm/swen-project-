@@ -59,6 +59,12 @@
       "Effect": "Allow",
       "Action": [
         "iam:CreateRole",
+  "iam:CreatePolicy",
+  "iam:CreatePolicyVersion",
+  "iam:DeletePolicyVersion",
+  "iam:SetDefaultPolicyVersion",
+  "iam:ListPolicyVersions",
+  "iam:ListPolicies",
         "iam:TagRole",
         "iam:DeleteRole",
         "iam:AttachRolePolicy",
