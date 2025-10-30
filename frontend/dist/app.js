@@ -23,19 +23,22 @@
   function setStatus(s){ statusEl.textContent = s; }
 
   function renderTelemetry(rows){
-    telemetryTableBody.innerHTML = '';
-    rows.forEach(r=>{
-      const tr = document.createElement('tr');
-      const time = new Date(r.timestamp || Date.now()).toLocaleTimeString();
-      tr.innerHTML = `<td>${time}</td>
-        <td>${r.service||'-'}</td>
-        <td>${r.provider||'-'}</td>
-        <td>${r.region||'-'}</td>
-        <td>${(r.cpu||0).toFixed(2)}</td>
-        <td>${(r.memory||0).toFixed(2)}</td>
-        <td>${r.latency_ms||'-'}</td>
-        <td>$${(r.cost_per_min||0).toFixed(5)}</td>`;
-      telemetryTableBody.appendChild(tr);
+    // Use requestAnimationFrame to avoid blocking the main thread during heavy updates
+    window.requestAnimationFrame(()=>{
+      telemetryTableBody.innerHTML = '';
+      rows.forEach(r=>{
+        const tr = document.createElement('tr');
+        const time = new Date(r.timestamp || Date.now()).toLocaleTimeString();
+        tr.innerHTML = `<td>${time}</td>
+          <td>${r.service||'-'}</td>
+          <td>${r.provider||'-'}</td>
+          <td>${r.region||'-'}</td>
+          <td>${(r.cpu||0).toFixed(2)}</td>
+          <td>${(r.memory||0).toFixed(2)}</td>
+          <td>${r.latency_ms||'-'}</td>
+          <td>$${(r.cost_per_min||0).toFixed(5)}</td>`;
+        telemetryTableBody.appendChild(tr);
+      });
     });
   }
 
@@ -61,15 +64,25 @@
   }
 
   function applyTelemetryUpdate(tail){
-    latestTelemetry = tail.slice(-50);
-    renderTelemetry(latestTelemetry.slice().reverse().slice(0,30));
+    try{
+      // simple change-detection key to avoid unnecessary re-renders
+      latestTelemetry = tail.slice(-200);
+      const top = latestTelemetry.slice().reverse().slice(0,30);
+      const key = `${top.length}:${top[0]?.timestamp||''}`;
+      if(applyTelemetryUpdate._lastKey === key){
+        // nothing new
+        return;
+      }
+      applyTelemetryUpdate._lastKey = key;
+      renderTelemetry(top);
     const m = computeMetrics(latestTelemetry, latestDecisions);
-    metricSpend.textContent = `$${m.spend.toFixed(5)}`;
+      metricSpend.textContent = `$${m.spend.toFixed(5)}`;
     metricLatency.textContent = `${m.latency}`;
     metricServices.textContent = `${m.services}`;
     metricConfidence.textContent = m.avgConf ? `${(m.avgConf*100).toFixed(0)}%` : '—';
     econ1h.textContent = `$${(m.spend*60).toFixed(3)}`;
     econSave.textContent = '—';
+    }catch(e){ console.error('applyTelemetryUpdate failed', e); }
   }
 
   function applyDecisionUpdate(tail){
