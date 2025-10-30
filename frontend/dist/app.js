@@ -210,8 +210,11 @@
         }else{
           wsHost = location.host; // includes port when non-default
         }
-        const url = wsProto + wsHost + '/ws';
-        ws = new WebSocket(url);
+  const url = wsProto + wsHost + '/ws';
+  // expose computed URL for debugging
+  try{ if(typeof document !== 'undefined'){ const el = document.getElementById('dbg-ws-url-val'); if(el) el.textContent = url; } }catch(e){}
+  console.debug('connecting ws ->', url);
+  ws = new WebSocket(url);
         ws.addEventListener('open', ()=>{
           reconnectMs = 1000;
           setStatus('connected (ws)');
