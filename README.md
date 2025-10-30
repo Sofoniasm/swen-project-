@@ -65,6 +65,14 @@ Important notes about costs and access:
 - EKS control plane is a managed AWS service and has its own cost. The Terraform config provisions a single small worker node to keep the hourly cost minimal. Review AWS pricing before applying.
 - The workflow will need AWS credentials with sufficient IAM permissions. If you prefer to run Terraform locally, you can run the Terraform in `infra/terraform` yourself and then run the Helm install steps locally.
 
+OIDC (recommended) — automatic, no static keys
+---------------------------------------------
+To avoid storing static AWS keys in repo secrets, configure GitHub OIDC and an IAM role in your AWS account that trusts GitHub Actions. Then add the role ARN to the repository secret `AWS_ROLE_ARN`.
+
+When `AWS_ROLE_ARN` is present the Actions workflow will attempt to assume that role via OIDC and proceed with Terraform/Helm without any `AWS_ACCESS_KEY_ID`/`AWS_SECRET_ACCESS_KEY` in the repo. If the secret is not present, the workflow falls back to using static keys.
+
+If you'd like help creating the IAM role trust policy or a minimal policy document for the role, tell me which AWS account/organisational constraints you have and I can generate the policy text for you.
+
 # SWEN GitOps + AIOps Prototype
 
 This repository contains a simulation-first GitOps + AIOps prototype for SWEN.

@@ -23,16 +23,24 @@ jobs:
         with:
           terraform_version: '1.5.7'
 
-      - name: Export AWS credentials to environment (temporary workaround)
-        # NOTE: Temporary workaround to avoid sts endpoint/network issues observed with
-        # aws-actions/configure-aws-credentials on hosted runners. This step exports
-        # the static secrets into the job environment so Terraform and aws CLI can use
-        # them directly. After provisioning completes, remove static secrets and
-        # restore the `aws-actions/configure-aws-credentials` step or OIDC flow.
-        run: |
-          echo "AWS_ACCESS_KEY_ID=${{ secrets.AWS_ACCESS_KEY_ID }}" >> $GITHUB_ENV
-          echo "AWS_SECRET_ACCESS_KEY=${{ secrets.AWS_SECRET_ACCESS_KEY }}" >> $GITHUB_ENV
-          echo "AWS_REGION=${{ secrets.AWS_REGION }}" >> $GITHUB_ENV
+      - name: Configure AWS credentials (OIDC preferred)
+        uses: aws-actions/configure-aws-credentials@v2
+        # Try OIDC via role-to-assume if the repo secret AWS_ROLE_ARN is provided.
+        # This requires the repo to have id-token: write permission (set above)
+        # and an AWS IAM role with a trusted relationship for GitHub OIDC.
+        with:
+          # If secrets.AWS_ROLE_ARN is set, the action will assume the role using OIDC.
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          role-session-name: gha-terraform
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: Configure AWS credentials (fallback to static keys)
+        if: ${{ !secrets.AWS_ROLE_ARN }}
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION }}
 
       - name: Terraform init
         working-directory: infra/terraform
