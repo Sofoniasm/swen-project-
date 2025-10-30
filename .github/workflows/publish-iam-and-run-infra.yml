@@ -72,26 +72,44 @@ jobs:
         run: |
           set -euo pipefail
           echo "Checking for existing managed policy"
-          ARN=$(aws iam list-policies --scope Local --query "Policies[?PolicyName=='${POLICY_NAME}'].Arn | [0]" --output text)
-          if [ -z "${ARN}" ] || [ "${ARN}" = "None" ]; then
-            echo "Policy not found; creating"
-            ARN=$(aws iam create-policy --policy-name "${POLICY_NAME}" --policy-document file://"${POLICY_FILE}" --query 'Policy.Arn' --output text)
-            echo "Created policy: ${ARN}"
-          else
-            echo "Found existing policy: ${ARN}"
-            echo "Creating new policy version and setting as default"
-            # If 5 versions exist, delete the oldest non-default to make room
-            VERSIONS=$(aws iam list-policy-versions --policy-arn "${ARN}" --query 'Versions[?IsDefaultVersion==`false`].VersionId' --output text)
-            if [ $(echo "$VERSIONS" | wc -w) -ge 5 ]; then
-              OLDEST=$(aws iam list-policy-versions --policy-arn "${ARN}" --query 'Versions[?IsDefaultVersion==`false`]|sort_by(@,&CreateDate)[0].VersionId' --output text)
-              if [ -n "${OLDEST}" ]; then
-                echo "Deleting oldest non-default version: ${OLDEST}"
-                aws iam delete-policy-version --policy-arn "${ARN}" --version-id "${OLDEST}"
-              fi
+            echo "POLICY_NAME=${POLICY_NAME}"
+            echo "POLICY_FILE=${POLICY_FILE}"
+            if [ ! -f "${POLICY_FILE}" ]; then
+              echo "ERROR: policy file not found at path: ${POLICY_FILE}" >&2
+              echo "Listing infra/terraform/iam:"; ls -la infra/terraform/iam || true
+              exit 2
             fi
-            aws iam create-policy-version --policy-arn "${ARN}" --policy-document file://"${POLICY_FILE}" --set-as-default
-            echo "Updated policy versions for ${ARN}"
-          fi
+
+            # Query for existing policy; capture errors in ARN
+            ARN=$(aws iam list-policies --scope Local --query "Policies[?PolicyName=='${POLICY_NAME}'].Arn | [0]" --output text 2>&1) || true
+            if [ -z "${ARN}" ] || [ "${ARN}" = "None" ] || [[ "${ARN}" == *"An error occurred"* ]]; then
+              echo "Policy not found or list failed; attempting to create"
+              set -x
+              if ! ARN=$(aws iam create-policy --policy-name "${POLICY_NAME}" --policy-document file://"${POLICY_FILE}" --query 'Policy.Arn' --output text); then
+                echo "ERROR: aws iam create-policy failed" >&2
+                set +x
+                aws iam get-caller-identity || true
+                exit 3
+              fi
+              set +x
+              echo "Created policy: ${ARN}"
+            else
+              echo "Found existing policy: ${ARN}"
+              echo "Creating new policy version and setting as default"
+              # If 5 versions exist, delete the oldest non-default to make room
+              VERSIONS=$(aws iam list-policy-versions --policy-arn "${ARN}" --query 'Versions[?IsDefaultVersion==`false`].VersionId' --output text)
+              if [ $(echo "$VERSIONS" | wc -w) -ge 5 ]; then
+                OLDEST=$(aws iam list-policy-versions --policy-arn "${ARN}" --query 'Versions[?IsDefaultVersion==`false`]|sort_by(@,&CreateDate)[0].VersionId' --output text)
+                if [ -n "${OLDEST}" ]; then
+                  echo "Deleting oldest non-default version: ${OLDEST}"
+                  aws iam delete-policy-version --policy-arn "${ARN}" --version-id "${OLDEST}" || true
+                fi
+              fi
+              set -x
+              aws iam create-policy-version --policy-arn "${ARN}" --policy-document file://"${POLICY_FILE}" --set-as-default
+              set +x
+              echo "Updated policy versions for ${ARN}"
+            fi
 
       - name: Apply updated trust policy to role
         shell: bash
