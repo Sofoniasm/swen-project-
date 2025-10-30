@@ -5,7 +5,7 @@ on:
     branches: [ main ]
 
 permissions:
-  contents: read
+  contents: write
   packages: write
 
 jobs:
@@ -82,8 +82,23 @@ jobs:
           git commit -m "chore: update k8s images to ${{ github.sha }}" || echo "no changes"
           git push --set-upstream origin image-updates/${{ github.sha }} || true
 
+      - name: Check for k8s manifest changes
+        id: check_changes
+        run: |
+          # Ensure we have the latest main for comparison
+          git fetch origin main --depth=1 || true
+          git checkout image-updates/${{ github.sha }} || true
+          # List changed files between this branch and origin/main
+          CHANGED=$(git diff --name-only origin/main...HEAD || true)
+          echo "Changed files:\n$CHANGED"
+          if echo "$CHANGED" | grep -E "^infra/k8s/" >/dev/null 2>&1; then
+            echo "changed=true" >> $GITHUB_OUTPUT
+          else
+            echo "changed=false" >> $GITHUB_OUTPUT
+          fi
+
       - name: Create Pull Request for image updates
-        if: always()
+        if: steps.check_changes.outputs.changed == 'true'
         uses: peter-evans/create-pull-request@v5
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
