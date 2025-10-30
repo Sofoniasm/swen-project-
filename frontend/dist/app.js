@@ -166,4 +166,59 @@
   }
   setTimeout(poll, 1000);
 
+  // --- Demo telemetry fallback: when backend returns no telemetry, simulate live data ---
+  let _demoInterval = null;
+  function rand(min, max){ return Math.random()*(max-min)+min; }
+  function sampleChoice(arr){ return arr[Math.floor(Math.random()*arr.length)]; }
+  function generateDemoEntry(baseTimestamp){
+    const services = ['fetcher','indexer','ranker','ingestor','api'];
+    const providers = ['aws','gcp','azure','oracle'];
+    const regions = ['us-east-1','eu-west-1','ap-south-1','us-west-2'];
+    const service = sampleChoice(services);
+    const provider = sampleChoice(providers);
+    const region = sampleChoice(regions);
+    const cpu = +(rand(0.1,2).toFixed(2));
+    const memory = +(rand(32,1024).toFixed(2));
+    const latency_ms = Math.round(rand(10,350));
+    const cost_per_min = +( (cpu * 0.005 + memory/1024 * 0.002 + latency_ms/10000) ).toFixed(6);
+    return {
+      timestamp: baseTimestamp || Date.now(),
+      service, provider, region,
+      cpu, memory, latency_ms, cost_per_min
+    };
+  }
+
+  function generateDemoTelemetry(n){
+    const now = Date.now();
+    const arr = [];
+    for(let i=0;i<n;i++) arr.push(generateDemoEntry(now - (n-i)*1000));
+    return arr;
+  }
+
+  function startDemoTelemetry(){
+    if(_demoInterval) return;
+    latestTelemetry = generateDemoTelemetry(8);
+    applyTelemetryUpdate(latestTelemetry.slice());
+    setStatus('demo mode');
+    _demoInterval = setInterval(()=>{
+      // roll and add a new entry to simulate live flow
+      latestTelemetry.push(generateDemoEntry());
+      if(latestTelemetry.length>200) latestTelemetry.shift();
+      applyTelemetryUpdate(latestTelemetry.slice());
+    }, 4500);
+  }
+
+  function stopDemoTelemetry(){
+    if(_demoInterval){ clearInterval(_demoInterval); _demoInterval = null; setStatus('connected'); }
+  }
+
+  // periodically check if we have live telemetry; if none, start demo mode
+  (function demoCheckLoop(){
+    try{
+      const hasLive = (latestTelemetry && latestTelemetry.length>0);
+      if(!hasLive) startDemoTelemetry(); else stopDemoTelemetry();
+    }catch(e){/*ignore*/}
+    setTimeout(demoCheckLoop, 5000);
+  })();
+
 })();
